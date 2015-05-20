@@ -7,7 +7,7 @@
 use 5.005;
 BEGIN { $| = 1; print "1..274\n"; }
 END {print "not ok 1\n" unless $loaded;}
-use Tie::SecureHash 'fast'; # Will spew warnings on test.  To see failures switch to 'fast'
+use Tie::SecureHash 'strict'; # Will spew warnings on test.  To see failures switch to 'fast'
 $loaded = 1;
 @failed = ();
 END {print "[Failed test: ", join(", ",@failed), "]\n" if @failed;}

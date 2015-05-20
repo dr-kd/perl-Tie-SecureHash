@@ -1154,7 +1154,7 @@ accessibility of each entry at the point where it was called (either
 =head3 More Debugging
 
 Sometimes you want to disable Tie::SecureHash's features.  See the
-CPAN module L<Tie::InSecureHash for one approach.
+CPAN module L<Tie::InSecureHash> for one approach.
 
 =head2 "Fast" securehashes
         
@@ -1490,6 +1490,9 @@ Typically something like this:
 This doesn't work unless all the existing keys are accessible at the point of
 the assignment.
 
+=head1 REPOSITORY
+
+L<https://github.com/singingfish/perl-Tie-SecureHash.git>
 
 =head1 AUTHOR
 
