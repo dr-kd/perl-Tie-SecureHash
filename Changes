@@ -22,3 +22,23 @@ Revision history for Perl extension Tie::SecureHash.
 	- worked-around panic at end of test.pl (thanks David)
 
 	- fixed bug in initialization under fast mode (thanks David)
+
+
+UNRELEASED CHANGES
+
+	- Minor tweak to new (thanks David)
+
+	- Fixed doc bug (thanks John)
+
+	- Added appropriate warnings against iteration under 'strict'
+	  (thanks MJD)
+
+	- Added workaround for $1->isa(...) bug in 5.6.0
+
+	- Added the full DESCRIPTION to the documentation (finally!)
+
+	- Squished spurious 5.6.1 warnings on sub each, sub keys, etc.
+	  (thanks Danny and Julian)
+
+	- Squished more warnings on core each and keys (thanks Kevin, Jeff, and
+      Steve)
