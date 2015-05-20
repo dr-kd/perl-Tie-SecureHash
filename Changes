@@ -24,7 +24,13 @@ Revision history for Perl extension Tie::SecureHash.
 	- fixed bug in initialization under fast mode (thanks David)
 
 
-UNRELEASED CHANGES
+1.04    Wed May 20 15:38 2015
+
+	- Modernise dist to be more like a 2015 module. (ZARQUON)
+
+	- Note the existence of Tie::InSecureHash in the docs. (ZARQUON)
+
+	- Now that the test warns about fast mode, document it in the test. (ZARQUON)
 
 	- Minor tweak to new (thanks David)
 

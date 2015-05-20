@@ -1151,6 +1151,11 @@ securehash, categorized by owner. More importantly, debug reports the
 accessibility of each entry at the point where it was called (either
 "accessible", "inaccessible", or "ambiguous") and explains why.
 
+=head3 More Debugging
+
+Sometimes you want to disable Tie::SecureHash's features.  See the
+CPAN module L<Tie::InSecureHash for one approach.
+
 =head2 "Fast" securehashes
         
 Securehashes provide an easy means of controlling the accessibility of
