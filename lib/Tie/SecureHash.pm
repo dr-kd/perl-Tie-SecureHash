@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION $strict $fast);
 use Carp;
 
-$VERSION = '1.04';
+$VERSION = '1.05';
 
 sub import
 {

@@ -24,7 +24,7 @@ Revision history for Perl extension Tie::SecureHash.
 	- fixed bug in initialization under fast mode (thanks David)
 
 
-1.04    Wed May 20 15:38 2015  
+1.04    Wed May 2015 15:38 2015
 
 	- Modernise dist to be more like a 2015 module. (ZARQUON)
 
@@ -48,3 +48,7 @@ Revision history for Perl extension Tie::SecureHash.
 
 	- Squished more warnings on core each and keys (thanks Kevin, Jeff, and
       Steve)
+
+1.05 Wed May 2015 16:17 2015
+
+	- Packaging errors corrected
