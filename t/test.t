@@ -5,9 +5,12 @@
 ######################### We start with some black magic to print on failure.
 
 use 5.005;
-BEGIN { $| = 1; print "1..274\n"; }
+BEGIN { $| = 1; print "1..274\n"; 
+$ENV{UNSAFE_WARN} = 0;
+}
 END {print "not ok 1\n" unless $loaded;}
-use Tie::SecureHash 'strict'; # Will spew warnings on test.  To see failures switch to 'fast'
+
+use Tie::SecureHash;
 $loaded = 1;
 @failed = ();
 END {print "[Failed test: ", join(", ",@failed), "]\n" if @failed;}

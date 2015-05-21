@@ -4,7 +4,7 @@ use strict;
 use vars qw($VERSION $strict $fast);
 use Carp;
 
-$VERSION = '1.05';
+$VERSION = '1.06';
 
 sub import
 {
@@ -130,7 +130,7 @@ sub _access	# ($self,$key,$caller)
 	{
 		carp qq{Accessing securehash via unqualified key {"$key"}\n}.
 		     qq{will be unsafe in 'fast' mode. Use {"${caller}::$key"}}
-			if $strict;
+			if $strict && $ENV{UNSAFE_WARN};
 		if (!exists $self->{fullkeys}{"${caller}::$key"})
 		{
 			croak "Private key '$key' of tied securehash is inaccessible from package $caller"
@@ -152,7 +152,7 @@ sub _access	# ($self,$key,$caller)
 		my $fullkey = "${caller}::$key";	
 		carp qq{Accessing securehash via unqualified key {"$key"}\n}.
 		     qq{will be unsafe in 'fast' mode. Use {"${caller}::$key"}}
-			if $strict;
+			if $strict && $ENV{UNSAFE_WARN};
 		if (exists $self->{fullkeys}{$fullkey})
 		{
 			$key = $fullkey;
@@ -333,7 +333,7 @@ sub TIEHASH	# ($class, @args)
 		     qq{Use Tie::SecureHash::new instead}
 			unless (caller 1)[3] =~ /\A(.*?)::([^:]*)\Z/
 			    && $2 eq "new"
-			    && "$1"->isa('Tie::SecureHash');
+			    && "$1"->isa('Tie::SecureHash') && $ENV{UNSAFE_WARN};
 	}
 	elsif ($fast)
 	{
@@ -400,7 +400,7 @@ sub NEXTKEY	# ($self)
 	while (defined($key = CORE::each %{$self->{fullkeys}}))
 	{
 		last if eval { _access($self,$key,@context) };
-		carp "Attempt to iterate inaccessible key '$key' will be unsafe in 'fast' mode. Use explicit keys";
+		carp "Attempt to iterate inaccessible key '$key' will be unsafe in 'fast' mode. Use explicit keys" if $ENV{UNSAFE_WARN};
 		     
 	}
 	return $key;
@@ -1464,8 +1464,9 @@ $Tie::SecureHash::fast keys were set. But the two modes are mutually exclusive.
 
 =item C<Accessing securehash via unqualified key %s will be unsafe in 'fast' mode. Use %s::%s>
 
-This warning is issued in "strict" mode, and points out an access attempt which
-will break if the code is converted to "fast" mode.
+This warning is issued in "strict" mode if the environment variable
+UNSAFE_WARN is true, and points out an access attempt which will break
+if the code is converted to "fast" mode.
 
 =item C<Tie'ing a securehash directly will circumvent 'fast' mode. Use Tie::SecureHash::new instead>
 

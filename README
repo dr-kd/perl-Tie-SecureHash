@@ -942,8 +942,9 @@ DIAGNOSTICS
 
     "Accessing securehash via unqualified key %s will be unsafe in 'fast'
     mode. Use %s::%s"
-        This warning is issued in "strict" mode, and points out an access
-        attempt which will break if the code is converted to "fast" mode.
+        This warning is issued in "strict" mode if the environment variable
+        UNSAFE_WARN is true, and points out an access attempt which will
+        break if the code is converted to "fast" mode.
 
     "Tie'ing a securehash directly will circumvent 'fast' mode. Use
     Tie::SecureHash::new instead"
