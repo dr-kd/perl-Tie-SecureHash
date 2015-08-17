@@ -6,316 +6,275 @@ use Carp;
 
 $VERSION = '1.06';
 
-sub import
-{
-	my $pkg = shift;
-	foreach (@_) { $strict ||= /strict/; $fast ||= /fast/ }
-	croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
+sub import {
+    my $pkg = shift;
+    foreach (@_) {
+        $strict ||= /strict/; $fast ||= /fast/;
+    }
+    croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
 }
 
 # TAKE A LIST OF POSSIBLE CLASSES FOR AN IMPLICIT KEY AND REMOVE NON-CONTENDERS
 
-sub _winnow
-{
-	my ($caller, $nonpublic, @classes) = @_;
+sub _winnow {
+    my ($caller, $nonpublic, @classes) = @_;
 
-	# REMOVE CLASSES NOT IN HIERARCHY FOR NON-PUBLIC KEY
+    # REMOVE CLASSES NOT IN HIERARCHY FOR NON-PUBLIC KEY
 
-	@classes = grep { $caller->isa($_) } @classes if $nonpublic;
+    @classes = grep { $caller->isa($_) } @classes if $nonpublic;
 
-	# COMPARE REMAINING KEYS PAIRWISE, ELIMINATING "SHADOWED" KEYS...
+    # COMPARE REMAINING KEYS PAIRWISE, ELIMINATING "SHADOWED" KEYS...
 
-	I: for(my $i=0; $i<$#classes; )
+  I: for(my $i=0; $i<$#classes; )
 	{
-		J: for(my $j=$i+1; $j<@classes; )
+          J: for(my $j=$i+1; $j<@classes; )
 		{
-			if ($classes[$j]->isa($classes[$i]))
-			{
+                    if ($classes[$j]->isa($classes[$i])) {
 			# CLASS J SHADOWS I FROM $caller
-				if ($caller->isa($classes[$j]))
-				{
-					splice @classes,$i,1;
-					next I;
-				}
+                        if ($caller->isa($classes[$j])) {
+                            splice @classes,$i,1;
+                            next I;
+                        }
 			# CLASS J BELOW CALLING PACKAGE
 			# (SO CALLING PACKAGE COULDN'T INHERIT IT)
-				elsif($classes[$j]->isa($caller))
-				{
-					splice @classes,$j,1;
-					next J;
-				}
-			}
-			elsif ($classes[$i]->isa($classes[$j]))
-			{
+                        elsif ($classes[$j]->isa($caller)) {
+                            splice @classes,$j,1;
+                            next J;
+                        }
+                    } elsif ($classes[$i]->isa($classes[$j])) {
 			# CLASS I SHADOWS J FROM $caller
-				if ($caller->isa($classes[$i]))
-				{
-					splice @classes,$j,1;
-					next J;
-				}
+                        if ($caller->isa($classes[$i])) {
+                            splice @classes,$j,1;
+                            next J;
+                        }
 			# CLASS I BELOW CALLING PACKAGE
 			# (SO CALLING PACKAGE COULDN'T INHERIT IT)
-				elsif($classes[$i]->isa($caller))
-				{
-					splice @classes,$i,1;
-					next I;
-				}
-			}
-			$j++;
+                        elsif ($classes[$i]->isa($caller)) {
+                            splice @classes,$i,1;
+                            next I;
+                        }
+                    }
+                    $j++;
 
 		}
-		$i++;
+            $i++;
 	}
 
-	return @classes;
-};
+    return @classes;
+}
+;
 
 # DETERMINE IF A KEY IS ACCESSIBLE
 
-sub _access	# ($self,$key,$caller)
-{
-	my ($self, $key, $caller, $file, $delete) = @_;
+sub _access	{               # ($self,$key,$caller)
+    my ($self, $key, $caller, $file, $delete) = @_;
 
-	# EXPLICIT KEYS...
+    # EXPLICIT KEYS...
 
-	if ($key =~ /\A([\w:]*)::((_{0,2})[^:]+)\Z/)
-	{
-		my ($classname, $shortkey, $mode) = ($1,$2,$3);
-		unless ($classname)
+    if ($key =~ /\A([\w:]*)::((_{0,2})[^:]+)\Z/) {
+        my ($classname, $shortkey, $mode) = ($1,$2,$3);
+        unless ($classname)
+            {
+                $classname = 'main';
+                $key = $classname.$key;
+            }
+        if ($mode eq '__')	# PRIVATE
+            {
+                croak "Private key $key of tied securehash inaccessible from package $caller"
+                    unless $classname eq $caller;
+                if (exists $self->{fullkeys}{$key}) {
+                    croak "Private key $key of tied securehash inaccessible from file $file"
+                        if $self->{file}{$key} ne $file;
+                } else {
+                    if ($delete) {
+                        delete $self->{file}{$key};
+                    } else {
+                        $self->{file}{$key} = $file;
+                    }
+                }
+            } elsif ($mode eq '_') # PROTECTED
 		{
-			$classname = 'main';
-			$key = $classname.$key;
-		}
-		if ($mode eq '__')	# PRIVATE
-		{
-			croak "Private key $key of tied securehash inaccessible from package $caller"
-				unless $classname eq $caller;
-			if (exists $self->{fullkeys}{$key})
-			{
-				croak "Private key $key of tied securehash inaccessible from file $file"
-					if $self->{file}{$key} ne $file;
-			}
-			else
-			{
-				if ($delete) { delete $self->{file}{$key} }
-				else { $self->{file}{$key} = $file }
-			}
-		}
-		elsif ($mode eq '_')	# PROTECTED
-		{
-			croak "Protected key $key of tied securehash inaccessible from package $caller"
-				unless $caller->isa($classname);
+                    croak "Protected key $key of tied securehash inaccessible from package $caller"
+                        unless $caller->isa($classname);
 		}
 
-		if (!exists $self->{fullkeys}{$key})
-		{
-			croak "Entry for key $key of tied securehash cannot be created " .
-			      "from package $caller"
-				if $classname ne $caller && !$delete;
-			if ($delete)
-			{
-				@{$self->{keylist}{$shortkey}} =
-					grep { $_ !~ /$classname/ }
-						@{$self->{keylist}{$shortkey}}
-			}
-			else
-			{
-				push @{$self->{keylist}{$shortkey}}, $classname;
-			}
-		}
-	}
+        if (!exists $self->{fullkeys}{$key}) {
+            croak "Entry for key $key of tied securehash cannot be created " .
+                "from package $caller"
+                    if $classname ne $caller && !$delete;
+            if ($delete) {
+                @{$self->{keylist}{$shortkey}} =
+                    grep { $_ !~ /$classname/ }
+                        @{$self->{keylist}{$shortkey}}
+                    } else {
+                        push @{$self->{keylist}{$shortkey}}, $classname;
+                    }
+        }
+    }
 
-	# IMPLICIT PRIVATE KEY (MUST BE IN CALLING CLASS)
-	elsif ($key =~ /\A(__[^:]+)\Z/)
-	{
-		carp qq{Accessing securehash via unqualified key {"$key"}\n}.
-		     qq{will be unsafe in 'fast' mode. Use {"${caller}::$key"}}
-			if $strict && $ENV{UNSAFE_WARN};
-		if (!exists $self->{fullkeys}{"${caller}::$key"})
-		{
-			croak "Private key '$key' of tied securehash is inaccessible from package $caller"
-				if exists $self->{keylist}{$key};
-			croak "Private key '${caller}::$key' does not exist in tied securehash"
-		}
-		$key = "${caller}::$key";	
-		if (exists $self->{fullkeys}{$key})
-		{
-			croak "Private key $key of tied securehash inaccessible from file $file"
-				if $self->{file}{$key} ne $file;
-		}
-	}
+    # IMPLICIT PRIVATE KEY (MUST BE IN CALLING CLASS)
+    elsif ($key =~ /\A(__[^:]+)\Z/) {
+        carp qq{Accessing securehash via unqualified key {"$key"}\n}.
+            qq{will be unsafe in 'fast' mode. Use {"${caller}::$key"}}
+                if $strict && $ENV{UNSAFE_WARN};
+        if (!exists $self->{fullkeys}{"${caller}::$key"}) {
+            croak "Private key '$key' of tied securehash is inaccessible from package $caller"
+                if exists $self->{keylist}{$key};
+            croak "Private key '${caller}::$key' does not exist in tied securehash"
+        }
+        $key = "${caller}::$key";	
+        if (exists $self->{fullkeys}{$key}) {
+            croak "Private key $key of tied securehash inaccessible from file $file"
+                if $self->{file}{$key} ne $file;
+        }
+    }
 
-	# IMPLICIT PROTECTED OR PUBLIC KEY
-	# (PROTECTED KEY MUST BE IN ANCESTRAL HIERARCHY OF CALLING CLASS)
-	elsif ($key =~ /\A((_?)[^:]+)\Z/)
-	{
-		my $fullkey = "${caller}::$key";	
-		carp qq{Accessing securehash via unqualified key {"$key"}\n}.
-		     qq{will be unsafe in 'fast' mode. Use {"${caller}::$key"}}
-			if $strict && $ENV{UNSAFE_WARN};
-		if (exists $self->{fullkeys}{$fullkey})
-		{
-			$key = $fullkey;
-		}
-		else
-		{
-			my @classes = _winnow($caller, $2,
-						 @{$self->{keylist}{$key}||[]});
+    # IMPLICIT PROTECTED OR PUBLIC KEY
+    # (PROTECTED KEY MUST BE IN ANCESTRAL HIERARCHY OF CALLING CLASS)
+    elsif ($key =~ /\A((_?)[^:]+)\Z/) {
+        my $fullkey = "${caller}::$key";	
+        carp qq{Accessing securehash via unqualified key {"$key"}\n}.
+            qq{will be unsafe in 'fast' mode. Use {"${caller}::$key"}}
+                if $strict && $ENV{UNSAFE_WARN};
+        if (exists $self->{fullkeys}{$fullkey}) {
+            $key = $fullkey;
+        } else {
+            my @classes = _winnow($caller, $2,
+                                  @{$self->{keylist}{$key}||[]});
 	
-			if (@classes)
-			{
+            if (@classes) {
 				# TOO MANY CHOICES
-				croak "Ambiguous key '$key' (when accessed "
-				      . "from package $caller).\nCould be:\n"
-				      . join("", map {"\t${_}::$key\n"} @classes)
-				      . " " 
-					if @classes > 1;
-				$key = $classes[0]."::$key";
-			}
-			else	# NOT ENOUGH CHOICES
-			{
-				croak +($2?"Protected":"Public")." key '$key' of tied securehash is inaccessible from package $caller"
-					if exists $self->{keylist}{$key};
-				croak +($2?"Protected":"Public")." key '${caller}::$key' does not exist in tied securehash";
-			}
-		}
-	}
-	else	# INVALID KEY 
+                croak "Ambiguous key '$key' (when accessed "
+                    . "from package $caller).\nCould be:\n"
+                        . join("", map {"\t${_}::$key\n"} @classes)
+                            . " " 
+                                if @classes > 1;
+                $key = $classes[0]."::$key";
+            } else              # NOT ENOUGH CHOICES
+                {
+                    croak +($2?"Protected":"Public")." key '$key' of tied securehash is inaccessible from package $caller"
+                        if exists $self->{keylist}{$key};
+                    croak +($2?"Protected":"Public")." key '${caller}::$key' does not exist in tied securehash";
+                }
+        }
+    } else                      # INVALID KEY 
 	{
-		croak "Invalid key '$key'";
+            croak "Invalid key '$key'";
 	}
 
-	if ($delete) { return delete $self->{fullkeys}{$key}; }	
-	return \$self->{fullkeys}{$key};
+    if ($delete) {
+        return delete $self->{fullkeys}{$key};
+    }	
+    return \$self->{fullkeys}{$key};
 
-};
+}
+;
 
 
 # NOTE THAT NEW MAY TIE AND BLESS INTO THE SAME CLASS
 # IF NOTHING MORE APPROPRIATE IS SPECIFIED
 
-sub new
-{
-	my %self = ();
-	my $class =  ref($_[0])||$_[0];
-	my $blessclass =  ref($_[1])||$_[1]||$class;
-	my $impl = tie %self, $class unless $fast;
-	my $self = bless \%self, $blessclass;
-	splice(@_,0,2);
-	if (@_)		# INITIALIZATION ARGUMENTS PRESENT
+sub new {
+    my %self = ();
+    my $class =  ref($_[0])||$_[0];
+    my $blessclass =  ref($_[1])||$_[1]||$class;
+    my $impl = tie %self, $class unless $fast;
+    my $self = bless \%self, $blessclass;
+    splice(@_,0,2);
+    if (@_)                     # INITIALIZATION ARGUMENTS PRESENT
 	{
-		my ($ancestor, $file);
-		my $i = 0;
-		while ( ($ancestor,$file) = caller($i++) )
-		{
-			last if $ancestor eq $blessclass;
-		}
-                $file = "" if ! defined $file;	# dms 14 Mar 2000: satisfy -w switch
-		my ($key, $value);
-		while (($key,$value) = splice(@_,0,2))
-		{
-			my $fullkey = $key=~/::/ ? $key : "${blessclass}::$key";
-			if ($fast)
-			{
-				$self->{$fullkey} = $value;
-			}
-			else
-			{
-				$impl->{fullkeys}{$fullkey} = $value;
-				push @{$impl->{keylist}{$key}}, $blessclass;
-				$impl->{file}{$fullkey} = $file
-					if $key =~ /\A__/;
-			}
-		}
+            my ($ancestor, $file);
+            my $i = 0;
+            while ( ($ancestor,$file) = caller($i++) ) {
+                last if $ancestor eq $blessclass;
+            }
+            $file = "" if ! defined $file; # dms 14 Mar 2000: satisfy -w switch
+            my ($key, $value);
+            while (($key,$value) = splice(@_,0,2)) {
+                my $fullkey = $key=~/::/ ? $key : "${blessclass}::$key";
+                if ($fast) {
+                    $self->{$fullkey} = $value;
+                } else {
+                    $impl->{fullkeys}{$fullkey} = $value;
+                    push @{$impl->{keylist}{$key}}, $blessclass;
+                    $impl->{file}{$fullkey} = $file
+                        if $key =~ /\A__/;
+                }
+            }
 	}
 
-	return $self;
+    return $self;
 }
 
 # USEFUL METHODS TO DUMP INFORMATION
 
-sub debug
-{
-	my $self = tied %{$_[0]};
-	my ($caller, $file, $line, $sub) = (caller,(caller(1))[3]||"(none)");
-	return _simple_debug($_[0],$caller, $file, $line, $sub) unless $self;
-	my ($key, $val);
-	my %sorted = ();
-	while ($key = CORE::each %{$self->{fullkeys}})
-	{
-		$key =~ m/\A(.*?)([^:]*)\Z/;
-		push @{$sorted{$1}}, $key;
-	}
+sub debug {
+    my $self = tied %{$_[0]};
+    my ($caller, $file, $line, $sub) = (caller,(caller(1))[3]||"(none)");
+    return _simple_debug($_[0],$caller, $file, $line, $sub) unless $self;
+    my ($key, $val);
+    my %sorted = ();
+    while ($key = CORE::each %{$self->{fullkeys}}) {
+        $key =~ m/\A(.*?)([^:]*)\Z/;
+        push @{$sorted{$1}}, $key;
+    }
 
-	print STDERR "\nIn subroutine '$sub' called from package '$caller' ($file, line $line):\n";
-	foreach my $class (CORE::keys %sorted)
-	{
-		print STDERR "\n\t$class\n";
-		foreach $key ( @{$sorted{$class}} )
-		{
-			print STDERR "\t\t";
-			my ($shortkey) = $key =~ /.*::(.*)/;
-			my $explanation = "";
-			if (eval { _access($self,$shortkey,$caller, $file); 1 })
-			{
-				print STDERR '(+)';
-			}
-			elsif ($@ =~ /\AAmbiguous key/)
-			{
-				print STDERR '(?)';
-				($explanation = $@) =~ s/.*\n//;
-				$explanation =~ s/.*\n\Z//;
-				$explanation =~ s/\ACould/Ambiguous unless fully qualified. Could/;
-				$explanation =~ s/^(?!\Z)/\t\t\t>>> /gm;
-			}
-			else
-			{
-				print STDERR '(-)';
-				if ($shortkey =~ /\A__/ && $@ =~ /file/)
-				{
-					$explanation = "\t\t\t>>> Private entry of $class\n\t\t\t>>> declared in file $self->{file}{$key}\n\t\t\t>>> is inaccessable from file $file.\n"
-				}
-				elsif ($shortkey =~ /\A__/)
-				{
-					$explanation = "\t\t\t>>> Private entry of $class\n\t\t\t>>> is inaccessable from package $caller.\n"
-				}
-				else
-				{
-					$explanation = "\t\t\t>>> Protected entry of $class\n\t\t\t>>> is inaccessible outside its hierarchy (i.e. from $caller).\n"
-				}
+    print STDERR "\nIn subroutine '$sub' called from package '$caller' ($file, line $line):\n";
+    foreach my $class (CORE::keys %sorted) {
+        print STDERR "\n\t$class\n";
+        foreach $key ( @{$sorted{$class}} ) {
+            print STDERR "\t\t";
+            my ($shortkey) = $key =~ /.*::(.*)/;
+            my $explanation = "";
+            if (eval { _access($self,$shortkey,$caller, $file); 1 }) {
+                print STDERR '(+)';
+            } elsif ($@ =~ /\AAmbiguous key/) {
+                print STDERR '(?)';
+                ($explanation = $@) =~ s/.*\n//;
+                $explanation =~ s/.*\n\Z//;
+                $explanation =~ s/\ACould/Ambiguous unless fully qualified. Could/;
+                $explanation =~ s/^(?!\Z)/\t\t\t>>> /gm;
+            } else {
+                print STDERR '(-)';
+                if ($shortkey =~ /\A__/ && $@ =~ /file/) {
+                    $explanation = "\t\t\t>>> Private entry of $class\n\t\t\t>>> declared in file $self->{file}{$key}\n\t\t\t>>> is inaccessable from file $file.\n"
+                } elsif ($shortkey =~ /\A__/) {
+                    $explanation = "\t\t\t>>> Private entry of $class\n\t\t\t>>> is inaccessable from package $caller.\n"
+                } else {
+                    $explanation = "\t\t\t>>> Protected entry of $class\n\t\t\t>>> is inaccessible outside its hierarchy (i.e. from $caller).\n"
+                }
 				
-			}
-			my $val = $self->{fullkeys}{$key};
-			if (defined $val) { $val = "'$val'" }
-			else { $val = "undef" }
-			print STDERR " '$shortkey'\t=> $val";
-			print STDERR "\n$explanation" if $explanation;
-			print STDERR "\n";
-		}
-	}
+            }
+            my $val = $self->{fullkeys}{$key};
+            if (defined $val) {
+                $val = "'$val'";
+            } else {
+                $val = "undef";
+            }
+            print STDERR " '$shortkey'\t=> $val";
+            print STDERR "\n$explanation" if $explanation;
+            print STDERR "\n";
+        }
+    }
 }
 
-sub _simple_debug
-{
-	my ($self,$caller, $file, $line, $sub) = @_;
-	my ($key, $val);
-	my %sorted = ();
-	while ($key = CORE::each %{$self})
-	{
-		$key =~ m/\A(.*?)([^:]*)\Z/;
-		push @{$sorted{$1}}, $key;
-	}
+sub _simple_debug {
+    my ($self,$caller, $file, $line, $sub) = @_;
+    my ($key, $val);
+    my %sorted = ();
+    while ($key = CORE::each %{$self}) {
+        $key =~ m/\A(.*?)([^:]*)\Z/;
+        push @{$sorted{$1}}, $key;
+    }
 
-	print "\nIn subroutine '$sub' called from package '$caller' ($file, line $line):\n";
-	foreach my $class (CORE::keys %sorted)
-	{
-		print "\n\t$class\n";
-		foreach $key ( @{$sorted{$class}} )
-		{
-			print "\t\t";
-			print " '$key'\t=> '$self->{$key}'\n";
-		}
-	}
+    print "\nIn subroutine '$sub' called from package '$caller' ($file, line $line):\n";
+    foreach my $class (CORE::keys %sorted) {
+        print "\n\t$class\n";
+        foreach $key ( @{$sorted{$class}} ) {
+            print "\t\t";
+            print " '$key'\t=> '$self->{$key}'\n";
+        }
+    }
 }
 
 
@@ -324,92 +283,85 @@ sub keys($)	{ CORE::keys %{$_[0]} }
 sub values($)	{ CORE::values %{$_[0]} }
 sub exists($$)	{ CORE::exists $_[0]->{$_[1]} }
 
-sub TIEHASH	# ($class, @args)
-{
-	my $class = ref($_[0]) || $_[0];
-	if ($strict)
-	{
-		carp qq{Tie'ing a securehash directly will be unsafe in 'fast' mode.\n}.
-		     qq{Use Tie::SecureHash::new instead}
-			unless (caller 1)[3] =~ /\A(.*?)::([^:]*)\Z/
-			    && $2 eq "new"
-			    && "$1"->isa('Tie::SecureHash') && $ENV{UNSAFE_WARN};
-	}
-	elsif ($fast)
-	{
-		carp qq{Tie'ing a securehash directly should never happen in 'fast' mode.\n}.
-		     qq{Use Tie::SecureHash::new instead}
-	}
-	bless {}, $class;
+sub TIEHASH {                     # ($class, @args)
+    my $class = ref($_[0]) || $_[0];
+if ($strict) {
+    carp qq{Tie'ing a securehash directly will be unsafe in 'fast' mode.\n}.
+        qq{Use Tie::SecureHash::new instead}
+            unless (caller 1)[3] =~ /\A(.*?)::([^:]*)\Z/
+                && $2 eq "new"
+                    && "$1"->isa('Tie::SecureHash') && $ENV{UNSAFE_WARN};
+} elsif ($fast) {
+    carp qq{Tie'ing a securehash directly should never happen in 'fast' mode.\n}.
+        qq{Use Tie::SecureHash::new instead}
+    }
+bless {}, $class;
 }
 
-sub FETCH	# ($self, $key)
-{
+    sub FETCH {                 # ($self, $key)
 	my ($self, $key) = @_;
 	my $entry = _access($self,$key,(caller)[0..1]);
 	return $$entry if $entry;
 	return;
-}
+    }
 
-sub STORE	# ($self, $key, $value)
-{
+sub STORE                       # ($self, $key, $value)
+    {
 	my ($self, $key, $value) = @_;
 	my $entry = _access($self,$key,(caller)[0..1]);
 	return $$entry = $value if $entry;
 	return;
-}
+    }
 
-sub DELETE	# ($self, $key)
-{
+sub DELETE                      # ($self, $key)
+    {
 	my ($self, $key) = @_;
 	return _access($self,$key,(caller)[0..1],'DELETE');
-}
+    }
 
-sub CLEAR	# ($self)
-{
+sub CLEAR                       # ($self)
+    {
 	my ($self) = @_;
 	my ($caller, $file) = caller;
 	my @inaccessibles =
-		grep { ! eval { _access($self,$_,$caller,$file); 1 } }
-			CORE::keys %{$self->{fullkeys}};
+            grep { ! eval { _access($self,$_,$caller,$file); 1 } }
+                CORE::keys %{$self->{fullkeys}};
 	croak "Unable to assign to securehash because the following existing keys\nare inaccessible from package $caller and cannot be deleted:\n" .
-		join("\n", map {"\t$_"} @inaccessibles) . "\n "
-			if @inaccessibles;
+            join("\n", map {"\t$_"} @inaccessibles) . "\n "
+                if @inaccessibles;
 	%{$self} = ();
-}
+    }
 
-sub EXISTS	# ($self, $key)
-{
+sub EXISTS                      # ($self, $key)
+    {
 	my ($self, $key) = @_;
 	my @context = (caller)[0..1];
 	eval { _access($self,$key,@context); 1 } ? 1 : '';
-}
+    }
 
-sub FIRSTKEY	# ($self)
-{
+sub FIRSTKEY                    # ($self)
+    {
 	my ($self) = @_;
 	CORE::keys %{$self->{fullkeys}};
 	goto &NEXTKEY;
-}
+    }
 
-sub NEXTKEY	# ($self)
-{
+sub NEXTKEY                     # ($self)
+    {
 	my $self = $_[0];
 	my $key;
 	my @context = (caller)[0..1];
-	while (defined($key = CORE::each %{$self->{fullkeys}}))
-	{
-		last if eval { _access($self,$key,@context) };
-		carp "Attempt to iterate inaccessible key '$key' will be unsafe in 'fast' mode. Use explicit keys" if $ENV{UNSAFE_WARN};
+	while (defined($key = CORE::each %{$self->{fullkeys}})) {
+            last if eval { _access($self,$key,@context) };
+            carp "Attempt to iterate inaccessible key '$key' will be unsafe in 'fast' mode. Use explicit keys" if $ENV{UNSAFE_WARN};
 		     
 	}
 	return $key;
-}
+    }
 
-sub DESTROY	# ($self)
-{
-	# NOTHING TO DO
-	# (BE CAREFUL SINCE IT DOES DOUBLE DUTY FOR tie AND bless)
+sub DESTROY {    # ($self) 
+    # NOTHING TO DO
+    # (BE CAREFUL SINCE IT DOES DOUBLE DUTY FOR tie AND bless)
 }
 
 
@@ -1483,6 +1435,8 @@ any value other than 1.
 
 =item C<Unable to assign to securehash because the following existing keys are inaccessible from package %s and cannot be deleted: %s>
 
+=back
+
 An attempt was made to assign a completely new set of entries to a securehash.
 Typically something like this:
 
@@ -1490,6 +1444,8 @@ Typically something like this:
 
 This doesn't work unless all the existing keys are accessible at the point of
 the assignment.
+
+
 
 =head1 REPOSITORY
 
