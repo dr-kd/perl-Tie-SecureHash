@@ -448,6 +448,14 @@ Tie::SecureHash - A tied hash that supports namespace-based encapsulation
 This document describes version 1.00 of Tie::SecureHash,
 released December 3, 1998
 
+=head1 CAVEAT
+
+The original author of this module doesn't use it any more and it's
+not recommended for new code.  Use L<Moo> or L<Moose> instead.  Newer
+(2015) releases of this module are here to deal with unintended
+consequences of the original implementation, and code that's not
+easily moved away to more modern constructs.
+
 =head1 SYNOPSIS
 
     use Tie::SecureHash;
@@ -1278,6 +1286,17 @@ tied to Tie::SecureHash, and whenever an unqualified key is used to
 access a securehash. Thus, code that uses securehashes and runs
 without warnings in "strict" mode is guaranteed to have the same
 behaviour in "fast" mode.
+
+=head2 'dangerous' securehashes
+
+Dangerous mode is an experimental mode where you get much of the speedup
+with safe mode but where your tests aren't good enough to make fast mode
+reliable.  If you start in fast and dangerous mode you'll get warnings
+about problematic entries.  I would imagine if the code is 'strict
+dangerous' warnings clean, then you have a good chance that fast mode will
+work.  Dangerous B<will not> work correctly in some multiple inheritance
+scenarios, it's very much up to the existing structure of your code.  This
+mode is called 'dangerous' for a reason.  Caveat emptor.
 
 =head2 The formal access rules
         
