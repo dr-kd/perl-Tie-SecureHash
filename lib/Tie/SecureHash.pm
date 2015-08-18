@@ -4,7 +4,7 @@ use strict;
 our ($VERSION, $strict, $fast, $dangerous);
 use Carp;
 
-$VERSION = '1.07';
+$VERSION = '1.08';
 
 sub import {
     my ($pkg, @args) = @_;
@@ -1284,7 +1284,7 @@ behaviour in "fast" mode.
 
 Dangerous mode is an experimental mode where you get much of the speedup
 with safe mode but where your tests aren't good enough to make fast mode
-reliable.  If you start in fast and dangerous mode you'll get warnings
+reliable.  If you start in strict and dangerous mode you'll get warnings
 about problematic entries.  I would imagine if the code is 'strict
 dangerous' warnings clean, then you have a good chance that fast mode will
 work.  Dangerous B<will not> work correctly in some multiple inheritance
@@ -1495,7 +1495,7 @@ valid package name.
 =item C<%s can't be both "strict" and "fast">
 
 Tie::SecureHash detected that both the $Tie::SecureHash::strict and
-$Tie::SecureHash::fast keys were set. But the two modes are mutually exclusive.
+
 
 =item C<Accessing securehash via unqualified key %s will be unsafe in 'fast' mode. Use %s::%s>
 
@@ -1537,6 +1537,8 @@ L<https://github.com/singingfish/perl-Tie-SecureHash.git>
 =head1 AUTHOR
 
 Damian Conway (damian@cs.monash.edu.au)
+
+"Dangerous mode" and 'better' test coverage Kieren Diment <zarquon@cpan.org>
 
 =head1 BUGS AND IRRITATIONS
 
