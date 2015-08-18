@@ -67,7 +67,7 @@ sub _winnow {
 
 # DETERMINE IF A KEY IS ACCESSIBLE
 
-sub _access	{               # ($self,$key,$caller)
+sub _access {
     my ($self, $key, $caller, $file, $delete) = @_;
 
     # EXPLICIT KEYS...
@@ -395,7 +395,7 @@ sub EXISTS                      # ($self, $key)
         }
         else {
             my $caller = (caller)[0];
-            carp "Expensive dangerous Tie::SecureHash exists in $caller for key $key" if $strict;
+            carp "Expensive dangerous Tie::SecureHash EXISTS in $caller for key $key" if $strict;
             return exists $self->{fullkeys}->{"$caller::$key"};
         }
     }
