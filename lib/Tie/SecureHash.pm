@@ -1,7 +1,7 @@
 package Tie::SecureHash;
 
 use strict;
-use vars qw($VERSION $strict $fast);
+use vars qw($VERSION $strict $fast $dangerous);
 use Carp;
 
 $VERSION = '1.06';
@@ -9,7 +9,7 @@ $VERSION = '1.06';
 sub import {
     my $pkg = shift;
     foreach (@_) {
-        $strict ||= /strict/; $fast ||= /fast/;
+        $strict ||= /strict/; $fast ||= /fast/ ; $dangerous = /dangerous/;
     }
     croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
 }
@@ -170,6 +170,29 @@ sub _access	{               # ($self,$key,$caller)
 }
 ;
 
+sub _dangerous_access {
+    my ($self,$key,$caller, $delete) = @_;
+    carp "Ran an expensive dangerous fetch due to unqualified key being sent in to hash for $caller" if $strict;
+    require mro;
+    my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
+    pop @isa;
+    my @candidate_keys = map { "$_::$key" } @isa;
+    my $val;
+    foreach my $k (@candidate_keys) {
+        if ($delete) {
+            my $deleted;
+            if (exists $self->{fullkeys}->{$k}) {
+                delete $self->{fullkeys}->{$k};
+                $deleted = 1;
+            }
+            last if $deleted;
+        } else {
+            $val = $self->{fullkeys}->{$k};
+            last if $val;
+        }
+    }
+    return \$val;
+}
 
 # NOTE THAT NEW MAY TIE AND BLESS INTO THE SAME CLASS
 # IF NOTHING MORE APPROPRIATE IS SPECIFIED
@@ -283,32 +306,47 @@ sub keys($)	{ CORE::keys %{$_[0]} }
 sub values($)	{ CORE::values %{$_[0]} }
 sub exists($$)	{ CORE::exists $_[0]->{$_[1]} }
 
-sub TIEHASH {                     # ($class, @args)
+sub TIEHASH {                   # ($class, @args)
     my $class = ref($_[0]) || $_[0];
-if ($strict) {
-    carp qq{Tie'ing a securehash directly will be unsafe in 'fast' mode.\n}.
-        qq{Use Tie::SecureHash::new instead}
-            unless (caller 1)[3] =~ /\A(.*?)::([^:]*)\Z/
-                && $2 eq "new"
-                    && "$1"->isa('Tie::SecureHash') && $ENV{UNSAFE_WARN};
-} elsif ($fast) {
-    carp qq{Tie'ing a securehash directly should never happen in 'fast' mode.\n}.
-        qq{Use Tie::SecureHash::new instead}
-    }
-bless {}, $class;
+    if ($strict) {
+        carp qq{Tie'ing a securehash directly will be unsafe in 'fast' mode.\n}.
+            qq{Use Tie::SecureHash::new instead}
+                unless (caller 1)[3] =~ /\A(.*?)::([^:]*)\Z/
+                    && $2 eq "new"
+                        && "$1"->isa('Tie::SecureHash') && $ENV{UNSAFE_WARN};
+    } elsif ($fast) {
+        carp qq{Tie'ing a securehash directly should never happen in 'fast' mode.\n}.
+            qq{Use Tie::SecureHash::new instead}
+        }
+    bless {}, $class;
 }
 
-    sub FETCH {                 # ($self, $key)
-	my ($self, $key) = @_;
-	my $entry = _access($self,$key,(caller)[0..1]);
-	return $$entry if $entry;
-	return;
+sub FETCH {                     # ($self, $key)
+    my ($self, $key) = @_;
+    my $entry;
+    if (! $dangerous) {
+        $entry = _access($self,$key,(caller)[0..1]);
+    } elsif ($key =~ /::/) {
+        $entry = \$self->{fullkeys}->{$key};
+    } else {
+        $entry = $self->_dangerous_access($key, (caller)[0]);
     }
+    return $$entry if $entry;
+    return;
+}
 
 sub STORE                       # ($self, $key, $value)
     {
 	my ($self, $key, $value) = @_;
-	my $entry = _access($self,$key,(caller)[0..1]);
+	my $entry;
+	if (! $dangerous) {
+            $entry = _access($self,$key,(caller)[0..1]);
+	} elsif ($key =~ /::/) {
+            $self->{fullkeys}->{$key} = $value;
+            $entry = \$self->{fullkeys}->{$key};
+	} else {
+            $entry = $self->_dangerous_access($key,(caller)[0..1]);
+	}
 	return $$entry = $value if $entry;
 	return;
     }
@@ -316,27 +354,47 @@ sub STORE                       # ($self, $key, $value)
 sub DELETE                      # ($self, $key)
     {
 	my ($self, $key) = @_;
-	return _access($self,$key,(caller)[0..1],'DELETE');
+	if (! $dangerous) {
+            return _access($self,$key,(caller)[0..1],'DELETE');
+	} elsif ($key =~ /::/) {
+            delete $self->{fullkeys}->{$key};
+	} else {
+            return $self->_dangerous_access($key, (caller)[0], 'DELETE');
+	}
     }
 
-sub CLEAR                       # ($self)
-    {
-	my ($self) = @_;
-	my ($caller, $file) = caller;
-	my @inaccessibles =
+
+sub CLEAR {                     # ($self)
+    my ($self) = @_;
+    if ($dangerous) {
+        %$self = ();
+    }
+    else {
+        my ($caller, $file) = caller;
+        my @inaccessibles =
             grep { ! eval { _access($self,$_,$caller,$file); 1 } }
                 CORE::keys %{$self->{fullkeys}};
-	croak "Unable to assign to securehash because the following existing keys\nare inaccessible from package $caller and cannot be deleted:\n" .
+        croak "Unable to assign to securehash because the following existing keys\nare inaccessible from package $caller and cannot be deleted:\n" .
             join("\n", map {"\t$_"} @inaccessibles) . "\n "
                 if @inaccessibles;
-	%{$self} = ();
+        %{$self} = ();
     }
+}
 
 sub EXISTS                      # ($self, $key)
     {
 	my ($self, $key) = @_;
-	my @context = (caller)[0..1];
-	eval { _access($self,$key,@context); 1 } ? 1 : '';
+        if (! $dangerous) {
+            my @context = (caller)[0..1];
+            eval { _access($self,$key,@context); 1 } ? 1 : '';
+        }
+        elsif ($key =~ /::/) {
+            return exists $self->{fullkeys}->{$key};
+        }
+        else {
+            my $caller = (caller)[0];
+            return exists $self->{fullkeys}->{"$caller::$key"};
+        }
     }
 
 sub FIRSTKEY                    # ($self)
@@ -349,6 +407,9 @@ sub FIRSTKEY                    # ($self)
 sub NEXTKEY                     # ($self)
     {
 	my $self = $_[0];
+        if ($dangerous) {
+            return CORE::each %{$self->{fullkeys}};
+        }
 	my $key;
 	my @context = (caller)[0..1];
 	while (defined($key = CORE::each %{$self->{fullkeys}})) {
