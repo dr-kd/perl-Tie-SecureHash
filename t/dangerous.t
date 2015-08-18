@@ -5,12 +5,13 @@
 ######################### We start with some black magic to print on failure.
 
 use 5.005;
-BEGIN { $| = 1; print "1..274\n"; 
+BEGIN { $| = 1; print "1..160\n"; 
 $ENV{UNSAFE_WARN} = 0;
 }
 END {print "not ok 1\n" unless $loaded;}
 
-use Tie::SecureHash;
+use Tie::SecureHash 'dangerous';
+$VERBOSE=1;
 $loaded = 1;
 @failed = ();
 END {print "[Failed test: ", join(", ",@failed), "]\n" if @failed;}
@@ -62,20 +63,20 @@ package Parent;
 # ::ok eval { $::hashref->{Parent::ambiguous} = "ambiguous_p" };
 
 
-::NB "CAN'T DECLARE FIELDS OF ANOTHER CLASS";
-::ok not eval { $::hashref->{Other::__private_p} = "private_p" };
-::ok not eval { $::hashref->{Other::_protected_p} = "protected_p" };
-::ok not eval { $::hashref->{Other::public_p} = "public_p" };
+::NB "CAN DECLARE FIELDS OF ANOTHER CLASS";
+::ok eval { $::hashref->{Other::__private_p} = "private_p" };
+::ok eval { $::hashref->{Other::_protected_p} = "protected_p" };
+::ok eval { $::hashref->{Other::public_p} = "public_p" };
 
 ::NB "CAN ACCESS ALL FIELDS OF THIS CLASS EXPLICITLY";
 ::ok eval { $::hashref->{Parent::__private_p} };
 ::ok eval { $::hashref->{Parent::_protected_p} };
 ::ok eval { $::hashref->{Parent::public_p} };
 
-::NB "CAN ACCESS ALL FIELDS OF THIS CLASS IMPLICITLY";
-::ok eval { $::hashref->{__private_p} };
-::ok eval { $::hashref->{_protected_p} };
-::ok eval { $::hashref->{public_p} };
+::NB "CAN'T ACCESS ALL FIELDS OF THIS CLASS IMPLICITLY";
+::ok eval { ! $::hashref->{__private_p} };
+::ok eval { ! $::hashref->{_protected_p} };
+::ok eval { ! $::hashref->{public_p} };
 
 ::NB "CAN'T ACCESS NON-EXISTENT FIELDS OF THIS CLASS IMPLICITLY";
 ::ok not eval { $::hashref->{__private_p_ne} };
@@ -106,10 +107,10 @@ package Child;
 ::ok eval { $::hashref->{Child::_protected_c} = "protected_c" };
 ::ok eval { $::hashref->{Child::public_c} = "public_c" };
 
-::NB "CAN'T DECLARE FIELDS OF PARENT CLASS";
-::ok not eval { $::hashref->{Parent::__private_c} = "private_c" };
-::ok not eval { $::hashref->{Parent::_protected_c} = "protected_c" };
-::ok not eval { $::hashref->{Parent::public_c} = "public_c" };
+::NB "CAN DECLARE FIELDS OF PARENT CLASS";
+::ok eval { $::hashref->{Parent::__private_c} = "private_c" };
+::ok eval { $::hashref->{Parent::_protected_c} = "protected_c" };
+::ok eval { $::hashref->{Parent::public_c} = "public_c" };
 
 ::NB "CAN ACCESS ALL FIELDS OF THIS CLASS EXPLICITLY";
 ::ok eval { $::hashref->{Child::__private_c} };
@@ -121,15 +122,15 @@ package Child;
 ::ok eval { $::hashref->{_protected_c} };
 ::ok eval { $::hashref->{public_c} };
 
-::NB "CAN ACCESS NON-PRIVATE FIELDS OF PARENT CLASS EXPLICITLY";
-::ok not eval { $::hashref->{Parent::__private_p} };
+::NB "CAN ACCESS FIELDS OF PARENT CLASS EXPLICITLY";
+::ok eval { $::hashref->{Parent::__private_p} };
 ::ok eval { $::hashref->{Parent::_protected_p} eq "protected_p" };
 ::ok eval { $::hashref->{Parent::public_p} eq "public_p" };
 
 ::NB "CAN ACCESS NON-PRIVATE FIELDS OF PARENT CLASS IMPLICITLY";
-::ok not eval { $::hashref->{__private_p} };
-::ok eval { $::hashref->{_protected_p} eq "protected_p" };
-::ok eval { $::hashref->{public_p} eq "public_p" };
+::ok ! $::hashref->{__private_p};
+::ok ! $::hashref->{_protected_p} eq "protected_p";
+::ok ! $::hashref->{public_p} eq "public_p";
 
 ::NB "CAN 'OVERRIDE' FIELDS OF PARENT CLASS";
 ::ok eval { $::hashref->{Child::__private_p} = "private_cp" };
@@ -167,8 +168,8 @@ package GrandChild;
 package GreatGrandChild;
 @ISA = GrandChild;
 
-::NB "FROM A CLASS, THE GLOBALLY AMBIGUOUS MAY BE LOCALLY UNAMBIGUOUS";
-::ok not eval { $::hashref->{__ambiguous} };
+::NB "FROM A CLASS, THE GLOBALLY AMBIGUOUS MAY BE LOCALLY AMBIGUOUS";
+::ok  eval { $::hashref->{__ambiguous} };
 ::ok eval { $::hashref->{_ambiguous} };
 ::ok eval { $::hashref->{ambiguous} };
 
@@ -192,35 +193,35 @@ package main;
 ::ok eval { $::hashref->{::__ambiguous} = "__ambiguous_m" };
 ::ok eval { $::hashref->{::_ambiguous} = "_ambiguous_m" };
 ::ok eval { $::hashref->{::ambiguous} = "ambiguous_m" };
-::ok eval { $::hashref->{main::__ambiguous} };
-::ok eval { $::hashref->{main::_ambiguous} };
-::ok eval { $::hashref->{main::ambiguous} };
+::ok ! $::hashref->{main::__ambiguous};
+::ok ! $::hashref->{main::_ambiguous};
+::ok ! $::hashref->{main::ambiguous};
 ::ok eval { $::hashref->{::__ambiguous} };
 ::ok eval { $::hashref->{::_ambiguous} };
 ::ok eval { $::hashref->{::ambiguous} };
-::ok eval { $::hashref->{__ambiguous} };
-::ok eval { $::hashref->{_ambiguous} };
-::ok eval { $::hashref->{ambiguous} };
+::ok ! $::hashref->{__ambiguous};
+::ok ! $::hashref->{_ambiguous};
+::ok ! $::hashref->{ambiguous};
 
-::NB "CAN'T DECLARE FIELDS OF ANOTHER CLASS";
-::ok not eval { $::hashref->{Other::__private_p} = "private_p" };
-::ok not eval { $::hashref->{Other::_protected_p} = "protected_p" };
-::ok not eval { $::hashref->{Other::public_p} = "public_p" };
+::NB "CAN DECLARE FIELDS OF ANOTHER CLASS";
+::ok eval { $::hashref->{Other::__private_p} = "private_p" };
+::ok eval { $::hashref->{Other::_protected_p} = "protected_p" };
+::ok eval { $::hashref->{Other::public_p} = "public_p" };
 
 ::NB "CAN ACCESS PUBLIC FIELDS OF ANOTHER CLASS EXPLICITLY";
-::ok not eval { $::hashref->{Parent::__private_p} };
-::ok not eval { $::hashref->{Parent::_protected_p} };
+::ok eval { $::hashref->{Parent::__private_p} };
+::ok eval { $::hashref->{Parent::_protected_p} };
 ::ok eval { $::hashref->{Parent::public_p} };
 
-::NB "CAN ACCESS UNAMBIGUOUS PUBLIC FIELDS IMPLICITLY";
-::ok not eval { $::hashref->{__private_c} };
-::ok not eval { $::hashref->{_protected_c} };
-::ok eval { $::hashref->{public_c} };
+::NB "CAN'T ACCESS UNAMBIGUOUS PUBLIC FIELDS IMPLICITLY";
+::ok ! $::hashref->{__private_c};
+::ok ! $::hashref->{_protected_c};
+::ok ! $::hashref->{public_c};
 
-::NB "CAN ACCESS AMBIGUOUS FIELDS IMPLICITLY IF IN SAME CLASS";
-::ok eval { $::hashref->{__ambiguous} };
-::ok eval { $::hashref->{_ambiguous} };
-::ok eval { $::hashref->{ambiguous} };
+::NB "CAN'T ACCESS AMBIGUOUS FIELDS IMPLICITLY IF IN SAME CLASS";
+::ok ! $::hashref->{__ambiguous};
+::ok ! $::hashref->{_ambiguous};
+::ok ! $::hashref->{ambiguous};
 
 ::NB "CAN'T ACCESS NON-EXISTENT FIELDS OF THIS CLASS IMPLICITLY";
 ::ok not eval { $::hashref->{__private_m_ne} };
@@ -261,7 +262,7 @@ push @ISA, OtherParent;
 ::NB "THE PUBLICLY AMBIGUOUS IS NOW EVERYWHERE AMBIGUOUS";
 ::ok eval { $::hashref->{_ambiguous} };
 ::ok eval { $::hashref->{_ambiguous} };
-::ok not eval { $::hashref->{ambiguous} };
+::ok eval { $::hashref->{ambiguous} };
 
 ::NB "UNLESS DEFINED IN THE CURRENT CLASS";
 ::ok eval { $::hashref->{GreatGrandChild::ambiguous} = "ambiguous_gg" };
@@ -275,28 +276,25 @@ push @ISA, OtherParent;
 ::ok eval { $::hashref->{OtherParent::multi_ambiguous} };
 
 ::NB "MULTIPLE INHERITANCE AMBIGUITY WHEN IMPLICIT";
-::ok not eval { $::hashref->{_multi_ambiguous} };
-::ok not eval { $::hashref->{multi_ambiguous} };
+::ok eval { $::hashref->{_multi_ambiguous} };
+::ok eval { $::hashref->{multi_ambiguous} };
 
 package OtherParent;
 
-::NB "NO MULTIPLE INHERITANCE AMBIGUITY
-(EXACT MATCH IN CURRENT CLASS)";
-::ok eval { $::hashref->{_multi_ambiguous} };
-::ok eval { $::hashref->{multi_ambiguous} };
+::NB "MULTIPLE INHERITANCE AMBIGUITY";
+::ok ! $::hashref->{_multi_ambiguous};
+::ok ! $::hashref->{multi_ambiguous};
 
 package Parent;
 
-::NB "NO MULTIPLE INHERITANCE AMBIGUITY
-(EXACT MATCH IN CURRENT CLASS)";
-::ok eval { $::hashref->{_multi_ambiguous} };
-::ok eval { $::hashref->{multi_ambiguous} };
+::NB "MULTIPLE INHERITANCE AMBIGUITY";
+::ok ! $::hashref->{_multi_ambiguous};
+::ok ! $::hashref->{multi_ambiguous};
 
 package Child;
 
-::NB "NO MULTIPLE INHERITANCE AMBIGUITY FOR PROTECTED KEY
-(ONLY CURRENT CLASS AND PARENT CLASSES CONSIDERED)";
-::ok eval { $::hashref->{_multi_ambiguous} };
+::NB "MULTIPLE INHERITANCE AMBIGUITY FOR PROTECTED KEY";
+::ok ! $::hashref->{_multi_ambiguous};
 
 ::NB "MULTIPLE INHERITANCE AMBIGUITY PUBLIC KEY
 (ALL CLASSES CONSIDERED)";
@@ -315,29 +313,29 @@ package main;
 ::NB "CAN DELETE OR CLEAR ACCESSIBLE KEYS";
 ::ok eval { delete $::hashref->{main::public}; 1 };
 ::ok eval { delete $::hashref->{Parent::public}; 1 };
-::ok not eval { delete $::hashref->{public}; 1 };
-::ok not eval { %{$::hashref} = (); 1 };
-::ok not eval { %{$::hashref} = (something=>"else"); 1 };
+::ok eval { delete $::hashref->{public}; 1 };
+::ok eval { %{$::hashref} = (); 1 };
+::ok eval { %{$::hashref} = (something=>"else"); 1 };
 
-::NB "CAN CHECK FOR EXISTENCE (INACCESSIBLE KEYS CONSIDERED NON-EXISTENT)";
+::NB "CAN CHECK FOR EXISTENCE (INACCESSIBLE KEYS CONSIDERED EXISTENT)";
 ::ok eval { ! exists $::hashref->{Parent::__private_p} };
 ::ok eval { ! exists $::hashref->{Parent::_protected_p} };
-::ok eval { exists $::hashref->{Parent::public_p} };
+::ok eval { ! exists $::hashref->{Parent::public_p} };
 ::ok eval { ! exists $::hashref->{__private_c} };
 ::ok eval { ! exists $::hashref->{_protected_c} };
-::ok eval { exists $::hashref->{public_c} };
+::ok eval { ! exists $::hashref->{public_c} };
 ::ok eval { ! exists $::hashref->{__private_m_ne2} };
 ::ok eval { ! exists $::hashref->{_protected_m_ne2} };
 ::ok eval { ! exists $::hashref->{_public_m_ne2} };
 ::ok eval { exists $::hashref->{main::__private_m_ne} || 1 };
 ::ok eval { exists $::hashref->{main::_protected_m_ne} || 1 };
 ::ok eval { exists $::hashref->{main::public_m_ne} || 1 };
-::ok eval { exists $::hashref->{::__ambiguous} };
-::ok eval { exists $::hashref->{::_ambiguous} };
-::ok eval { exists $::hashref->{::ambiguous} };
-::ok eval { exists $::hashref->{__ambiguous} };
-::ok eval { exists $::hashref->{_ambiguous} };
-::ok eval { exists $::hashref->{ambiguous} };
+::ok eval { ! exists $::hashref->{::__ambiguous} };
+::ok eval { ! exists $::hashref->{::_ambiguous} };
+::ok eval { ! exists $::hashref->{::ambiguous} };
+::ok eval { ! exists $::hashref->{__ambiguous} };
+::ok eval { ! exists $::hashref->{_ambiguous} };
+::ok eval { ! exists $::hashref->{ambiguous} };
 
 ::NB "CAN ITERATE (THROUGH ACCESSIBLE KEYS ONLY)";
 
