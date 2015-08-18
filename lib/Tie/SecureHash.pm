@@ -4,7 +4,7 @@ use strict;
 our ($VERSION, $strict, $fast, $dangerous);
 use Carp;
 
-$VERSION = '1.06';
+$VERSION = '1.07';
 
 sub import {
     my ($pkg, @args) = @_;
