@@ -167,9 +167,7 @@ sub _access	{               # ($self,$key,$caller)
         return delete $self->{fullkeys}{$key};
     }	
     return \$self->{fullkeys}{$key};
-
 }
-;
 
 sub _dangerous_access {
     my ($self,$key,$caller, $delete) = @_;
@@ -318,7 +316,7 @@ sub TIEHASH {                   # ($class, @args)
     } elsif ($fast) {
         carp qq{Tie'ing a securehash directly should never happen in 'fast' mode.\n}.
             qq{Use Tie::SecureHash::new instead}
-        }
+	}
     bless {}, $class;
 }
 
@@ -339,8 +337,7 @@ sub FETCH {                     # ($self, $key)
     return;
 }
 
-sub STORE                       # ($self, $key, $value)
-    {
+sub STORE {                       # ($self, $key, $value)
 	my ($self, $key, $value) = @_;
 	my $entry;
 	if (! $dangerous) {
