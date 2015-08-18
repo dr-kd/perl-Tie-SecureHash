@@ -345,7 +345,6 @@ package main;
 while (($key,$value) = each %$::hashref)
 {
 	print "\teach returned: ($key,$value)\n" if $::VERBOSE;
-	$DB::single=1 if $ok_count == 163;
 	::ok eval { !defined $value || $::hashref->{$key} eq $value };
 }
 

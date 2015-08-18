@@ -170,15 +170,15 @@ sub _access	{               # ($self,$key,$caller)
 }
 
 sub _dangerous_access {
-    my ($self,$key,$caller, $delete) = @_;
-    carp "Ran an expensive dangerous fetch due to unqualified key being sent in to hash for $caller" if $strict;
+    my ($self,$key,$caller, $action) = @_;
+    carp "Ran an expensive dangerous $action due to unqualified key $key being sent in to hash for $caller" if $strict;
     require mro;
     my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
     pop @isa; # Exporter
     my @candidate_keys = map { "$_::$key" } @isa;
     my $val;
     foreach my $k (@candidate_keys) {
-        if ($delete) {
+        if ($action eq 'DELETE') {
             my $deleted;
             if (exists $self->{fullkeys}->{$k}) {
                 delete $self->{fullkeys}->{$k};
@@ -322,7 +322,6 @@ sub TIEHASH {                   # ($class, @args)
 
 sub FETCH {                     # ($self, $key)
     my ($self, $key) = @_;
-    $DB::single=1;
     my $entry;
     if (! $dangerous) {
         $entry = _access($self,$key,(caller)[0..1]);
@@ -330,8 +329,7 @@ sub FETCH {                     # ($self, $key)
         $entry = \$self->{fullkeys}->{$key};
     } else {
         my $caller = (caller)[0];
-        carp "Expensive dangerous Tie::SecureHash fetch in $caller for key $key" if $strict;
-        $entry = $self->_dangerous_access($key, $caller);
+        $entry = $self->_dangerous_access($key, $caller, 'FETCH');
     }
     return $$entry if $entry;
     return;
@@ -347,8 +345,7 @@ sub STORE {                       # ($self, $key, $value)
             $entry = \$self->{fullkeys}->{$key};
 	} else {
             my $caller = (caller)[0];
-            carp "Expensive dangerous Tie::SecureHash store in $caller for key $key" if $strict;
-            $entry = $self->_dangerous_access($key,$caller);
+            $entry = $self->_dangerous_access($key,$caller, 'STORE');
 	}
 	return $$entry = $value if $entry;
 	return;
@@ -364,7 +361,6 @@ sub DELETE {                      # ($self, $key)
     } 
     else {
         my $caller = (caller)[0];
-        carp "Expensive dangerous Tie::SecureHash delete in $caller for key $key" if $strict;
         return $self->_dangerous_access($key, $caller, 'DELETE');
     }
 }
