@@ -57,3 +57,7 @@ Revision history for Perl extension Tie::SecureHash.
 
      	- The new warnings don't respect backcompat so make them
                optional with an ENV variable.
+
+1.06 Mon Aug 17 10:58 2015
+
+     	- Introduce $Tie::SecureHash::dangerous

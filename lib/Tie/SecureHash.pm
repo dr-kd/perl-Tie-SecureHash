@@ -1,16 +1,17 @@
 package Tie::SecureHash;
 
 use strict;
-use vars qw($VERSION $strict $fast);
+our ($VERSION, $strict, $fast, $dangerous);
 use Carp;
 
-$VERSION = '1.06';
+$VERSION = '1.07';
 
 sub import {
-    my $pkg = shift;
-    foreach (@_) {
-        $strict ||= /strict/; $fast ||= /fast/;
-    }
+    my ($pkg, @args) = @_;
+    my $args = join(' ', @args);
+    $strict = $args =~ /\bstrict\b/;
+    $fast   = $args =~ /\bfast\b/;
+    $dangerous = $args =~ /\bdangerous\b/;
     croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
 }
 
@@ -66,7 +67,7 @@ sub _winnow {
 
 # DETERMINE IF A KEY IS ACCESSIBLE
 
-sub _access {                   # ($self,$key,$caller)
+sub _access {
     my ($self, $key, $caller, $file, $delete) = @_;
 
     # EXPLICIT KEYS...
@@ -166,10 +167,31 @@ sub _access {                   # ($self,$key,$caller)
         return delete $self->{fullkeys}{$key};
     }	
     return \$self->{fullkeys}{$key};
-
 }
-;
 
+sub _dangerous_access {
+    my ($self,$key,$caller, $action) = @_;
+    carp "Ran an expensive dangerous $action due to unqualified key $key being sent in to hash for $caller" if $strict;
+    require mro;
+    my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
+    pop @isa; # Exporter
+    my @candidate_keys = map { "$_::$key" } @isa;
+    my $val;
+    foreach my $k (@candidate_keys) {
+        if ($action eq 'DELETE') {
+            my $deleted;
+            if (exists $self->{fullkeys}->{$k}) {
+                delete $self->{fullkeys}->{$k};
+                $deleted = 1;
+            }
+            last if $deleted;
+        } else {
+            $val = $self->{fullkeys}->{$k};
+            last if $val;
+        }
+    }
+    return \$val;
+}
 
 # NOTE THAT NEW MAY TIE AND BLESS INTO THE SAME CLASS
 # IF NOTHING MORE APPROPRIATE IS SPECIFIED
@@ -299,62 +321,109 @@ sub TIEHASH {                   # ($class, @args)
 }
 
 sub FETCH {                     # ($self, $key)
-
     my ($self, $key) = @_;
-    my $entry = _access($self,$key,(caller)[0..1]);
+    my $entry;
+    if (! $dangerous) {
+        $entry = _access($self,$key,(caller)[0..1]);
+    } elsif ($key =~ /::/) {
+        $entry = \$self->{fullkeys}->{$key};
+    } else {
+        my $caller = (caller)[0];
+        $entry = $self->_dangerous_access($key, $caller, 'FETCH');
+    }
     return $$entry if $entry;
     return;
 }
 
-sub STORE {                     # ($self, $key, $value)
-    my ($self, $key, $value) = @_;
-    my $entry = _access($self,$key,(caller)[0..1]);
-    return $$entry = $value if $entry;
-    return;
+sub STORE {                       # ($self, $key, $value)
+	my ($self, $key, $value) = @_;
+	my $entry;
+	if (! $dangerous) {
+            $entry = _access($self,$key,(caller)[0..1]);
+	} elsif ($key =~ /::/) {
+            $self->{fullkeys}->{$key} = $value;
+            $entry = \$self->{fullkeys}->{$key};
+	} else {
+            my $caller = (caller)[0];
+            $entry = $self->_dangerous_access($key,$caller, 'STORE');
+	}
+	return $$entry = $value if $entry;
+	return;
+    }
+
+sub DELETE {                      # ($self, $key)
+    my ($self, $key) = @_;
+    if (! $dangerous) {
+        return _access($self,$key,(caller)[0..1],'DELETE');
+    } 
+    elsif ($key =~ /::/) {
+        delete $self->{fullkeys}->{$key};
+    } 
+    else {
+        my $caller = (caller)[0];
+        return $self->_dangerous_access($key, $caller, 'DELETE');
+    }
 }
 
-sub DELETE {                    # ($self, $key)
-    my ($self, $key) = @_;
-    return _access($self,$key,(caller)[0..1],'DELETE');
-}
 
 sub CLEAR {                     # ($self)
     my ($self) = @_;
-    my ($caller, $file) = caller;
-    my @inaccessibles =
-        grep { ! eval { _access($self,$_,$caller,$file); 1 } }
-            CORE::keys %{$self->{fullkeys}};
-    croak "Unable to assign to securehash because the following existing keys\nare inaccessible from package $caller and cannot be deleted:\n" .
-        join("\n", map {"\t$_"} @inaccessibles) . "\n "
-            if @inaccessibles;
-    %{$self} = ();
-}
-
-sub EXISTS {                    # ($self, $key)
-    my ($self, $key) = @_;
-    my @context = (caller)[0..1];
-    eval { _access($self,$key,@context); 1 } ? 1 : '';
-}
-
-sub FIRSTKEY {                  # ($self)
-    my ($self) = @_;
-    CORE::keys %{$self->{fullkeys}};
-    goto &NEXTKEY;
-}
-
-sub NEXTKEY {                   # ($self)
-    my $self = $_[0];
-    my $key;
-    my @context = (caller)[0..1];
-    while (defined($key = CORE::each %{$self->{fullkeys}})) {
-        last if eval { _access($self,$key,@context) };
-        carp "Attempt to iterate inaccessible key '$key' will be unsafe in 'fast' mode. Use explicit keys" if $ENV{UNSAFE_WARN};
-		     
+    if ($dangerous) {
+        %$self = ();
     }
-    return $key;
+    else {
+        my ($caller, $file) = caller;
+        my @inaccessibles =
+            grep { ! eval { _access($self,$_,$caller,$file); 1 } }
+                CORE::keys %{$self->{fullkeys}};
+        croak "Unable to assign to securehash because the following existing keys\nare inaccessible from package $caller and cannot be deleted:\n" .
+            join("\n", map {"\t$_"} @inaccessibles) . "\n "
+                if @inaccessibles;
+        %{$self} = ();
+    }
 }
 
-sub DESTROY {    # ($self)
+sub EXISTS                      # ($self, $key)
+    {
+	my ($self, $key) = @_;
+        if (! $dangerous) {
+            my @context = (caller)[0..1];
+            eval { _access($self,$key,@context); 1 } ? 1 : '';
+        }
+        elsif ($key =~ /::/) {
+            return exists $self->{fullkeys}->{$key};
+        }
+        else {
+            my $caller = (caller)[0];
+            carp "Expensive dangerous Tie::SecureHash EXISTS in $caller for key $key" if $strict;
+            return exists $self->{fullkeys}->{"$caller::$key"};
+        }
+    }
+
+sub FIRSTKEY                    # ($self)
+    {
+	my ($self) = @_;
+	CORE::keys %{$self->{fullkeys}};
+	goto &NEXTKEY;
+    }
+
+sub NEXTKEY                     # ($self)
+    {
+	my $self = $_[0];
+        if ($dangerous) {
+            return CORE::each %{$self->{fullkeys}};
+        }
+	my $key;
+	my @context = (caller)[0..1];
+	while (defined($key = CORE::each %{$self->{fullkeys}})) {
+            last if eval { _access($self,$key,@context) };
+            carp "Attempt to iterate inaccessible key '$key' will be unsafe in 'fast' mode. Use explicit keys" if $ENV{UNSAFE_WARN};
+		     
+	}
+	return $key;
+    }
+
+sub DESTROY {    # ($self) 
     # NOTHING TO DO
     # (BE CAREFUL SINCE IT DOES DOUBLE DUTY FOR tie AND bless)
 }
@@ -371,6 +440,14 @@ Tie::SecureHash - A tied hash that supports namespace-based encapsulation
 
 This document describes version 1.00 of Tie::SecureHash,
 released December 3, 1998
+
+=head1 CAVEAT
+
+The original author of this module doesn't use it any more and it's
+not recommended for new code.  Use L<Moo> or L<Moose> instead.  Newer
+(2015) releases of this module are here to deal with unintended
+consequences of the original implementation, and code that's not
+easily moved away to more modern constructs.
 
 =head1 SYNOPSIS
 
@@ -1203,6 +1280,17 @@ access a securehash. Thus, code that uses securehashes and runs
 without warnings in "strict" mode is guaranteed to have the same
 behaviour in "fast" mode.
 
+=head2 'dangerous' securehashes
+
+Dangerous mode is an experimental mode where you get much of the speedup
+with safe mode but where your tests aren't good enough to make fast mode
+reliable.  If you start in fast and dangerous mode you'll get warnings
+about problematic entries.  I would imagine if the code is 'strict
+dangerous' warnings clean, then you have a good chance that fast mode will
+work.  Dangerous B<will not> work correctly in some multiple inheritance
+scenarios, it's very much up to the existing structure of your code.  This
+mode is called 'dangerous' for a reason.  Caveat emptor.
+
 =head2 The formal access rules
         
 The access rules for a securehash are designed to provide secure
@@ -1430,6 +1518,8 @@ any value other than 1.
 
 =item C<Unable to assign to securehash because the following existing keys are inaccessible from package %s and cannot be deleted: %s>
 
+=back
+
 An attempt was made to assign a completely new set of entries to a securehash.
 Typically something like this:
 
@@ -1437,6 +1527,8 @@ Typically something like this:
 
 This doesn't work unless all the existing keys are accessible at the point of
 the assignment.
+
+
 
 =head1 REPOSITORY
 
