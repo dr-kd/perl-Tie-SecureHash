@@ -1,16 +1,17 @@
 package Tie::SecureHash;
 
 use strict;
-use vars qw($VERSION $strict $fast $dangerous);
+our ($VERSION, $strict, $fast, $dangerous);
 use Carp;
 
 $VERSION = '1.06';
 
 sub import {
-    my $pkg = shift;
-    foreach (@_) {
-        $strict ||= /strict/; $fast ||= /fast/ ; $dangerous = /dangerous/;
-    }
+    my ($pkg, @args) = @_;
+    my $args = join(' ', @args);
+    $strict = $args =~ /\bstrict\b/;
+    $fast   = $args =~ /\bfast\b/;
+    $dangerous = $args =~ /\bdangerous\b/;
     croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
 }
 
@@ -175,7 +176,7 @@ sub _dangerous_access {
     carp "Ran an expensive dangerous fetch due to unqualified key being sent in to hash for $caller" if $strict;
     require mro;
     my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
-    pop @isa;
+    pop @isa; # Exporter
     my @candidate_keys = map { "$_::$key" } @isa;
     my $val;
     foreach my $k (@candidate_keys) {
@@ -323,13 +324,16 @@ sub TIEHASH {                   # ($class, @args)
 
 sub FETCH {                     # ($self, $key)
     my ($self, $key) = @_;
+    $DB::single=1;
     my $entry;
     if (! $dangerous) {
         $entry = _access($self,$key,(caller)[0..1]);
     } elsif ($key =~ /::/) {
         $entry = \$self->{fullkeys}->{$key};
     } else {
-        $entry = $self->_dangerous_access($key, (caller)[0]);
+        my $caller = (caller)[0];
+        carp "Expensive dangerous Tie::SecureHash fetch in $caller for key $key" if $strict;
+        $entry = $self->_dangerous_access($key, $caller);
     }
     return $$entry if $entry;
     return;
@@ -345,23 +349,28 @@ sub STORE                       # ($self, $key, $value)
             $self->{fullkeys}->{$key} = $value;
             $entry = \$self->{fullkeys}->{$key};
 	} else {
-            $entry = $self->_dangerous_access($key,(caller)[0..1]);
+            my $caller = (caller)[0];
+            carp "Expensive dangerous Tie::SecureHash store in $caller for key $key" if $strict;
+            $entry = $self->_dangerous_access($key,$caller);
 	}
 	return $$entry = $value if $entry;
 	return;
     }
 
-sub DELETE                      # ($self, $key)
-    {
-	my ($self, $key) = @_;
-	if (! $dangerous) {
-            return _access($self,$key,(caller)[0..1],'DELETE');
-	} elsif ($key =~ /::/) {
-            delete $self->{fullkeys}->{$key};
-	} else {
-            return $self->_dangerous_access($key, (caller)[0], 'DELETE');
-	}
+sub DELETE {                      # ($self, $key)
+    my ($self, $key) = @_;
+    if (! $dangerous) {
+        return _access($self,$key,(caller)[0..1],'DELETE');
+    } 
+    elsif ($key =~ /::/) {
+        delete $self->{fullkeys}->{$key};
+    } 
+    else {
+        my $caller = (caller)[0];
+        carp "Expensive dangerous Tie::SecureHash delete in $caller for key $key" if $strict;
+        return $self->_dangerous_access($key, $caller, 'DELETE');
     }
+}
 
 
 sub CLEAR {                     # ($self)
@@ -393,6 +402,7 @@ sub EXISTS                      # ($self, $key)
         }
         else {
             my $caller = (caller)[0];
+            carp "Expensive dangerous Tie::SecureHash exists in $caller for key $key" if $strict;
             return exists $self->{fullkeys}->{"$caller::$key"};
         }
     }

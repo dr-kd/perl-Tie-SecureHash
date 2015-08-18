@@ -10,8 +10,8 @@ $ENV{UNSAFE_WARN} = 0;
 }
 END {print "not ok 1\n" unless $loaded;}
 
-use Tie::SecureHash 'dangerous';
-$VERBOSE=1;
+use Tie::SecureHash qw/dangerous/;
+# use Tie::SecureHash qw/dangerous strict/; # for digging out potential fast mode compat issues
 $loaded = 1;
 @failed = ();
 END {print "[Failed test: ", join(", ",@failed), "]\n" if @failed;}
