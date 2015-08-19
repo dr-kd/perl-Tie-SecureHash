@@ -1,7 +1,7 @@
 package Tie::SecureHash;
 
 use strict;
-our ($VERSION, $strict, $fast, $dangerous);
+our ($VERSION, $strict, $fast, $dangerous, $loud);
 use Carp;
 
 $VERSION = '1.08';
@@ -12,7 +12,9 @@ sub import {
     $strict = $args =~ /\bstrict\b/;
     $fast   = $args =~ /\bfast\b/;
     $dangerous = $args =~ /\bdangerous\b/;
+    $loud = $args =~ /\bloud\b/;
     croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
+    $strict = 1 if $loud;
 }
 
 # TAKE A LIST OF POSSIBLE CLASSES FOR AN IMPLICIT KEY AND REMOVE NON-CONTENDERS
@@ -171,7 +173,7 @@ sub _access {
 
 sub _dangerous_access {
     my ($self,$key,$caller, $action) = @_;
-    carp "Ran an expensive dangerous $action due to unqualified key $key being sent in to hash for $caller" if $strict;
+    _complain(@_) if $strict;
     require mro;
     my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
     pop @isa; # Exporter
@@ -191,6 +193,17 @@ sub _dangerous_access {
         }
     }
     return \$val;
+}
+
+sub _complain { # override complain with Role::Tiny to customise dump.
+    my ($self, $key, $caller, $action) = @_;
+    $DB::single=1;
+    carp "Ran an expensive dangerous $action due to unqualified key $key being sent in to hash for $caller" if $strict;
+    if ($loud) {
+        require Data::Dumper;
+        Data::Dumper->import;
+        carp Dumper ($self->{fullkeys});
+    }
 }
 
 # NOTE THAT NEW MAY TIE AND BLESS INTO THE SAME CLASS
@@ -395,7 +408,7 @@ sub EXISTS                      # ($self, $key)
         }
         else {
             my $caller = (caller)[0];
-            carp "Expensive dangerous Tie::SecureHash EXISTS in $caller for key $key" if $strict;
+            _complain($self, $key, $caller, 'EXISTS') if $strict;
             return exists $self->{fullkeys}->{"$caller::$key"};
         }
     }
