@@ -10,7 +10,7 @@ $ENV{UNSAFE_WARN} = 0;
 }
 END {print "not ok 1\n" unless $loaded;}
 
-use Tie::SecureHash qw/dangerous strict/;
+use Tie::SecureHash qw/dangerous strict loud/;
 $loaded = 1;
 @failed = ();
 END {print "[Failed test: ", join(", ",@failed), "]\n" if @failed;}
