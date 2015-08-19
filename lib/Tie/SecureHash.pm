@@ -1,10 +1,10 @@
 package Tie::SecureHash;
 
 use strict;
-our ($VERSION, $strict, $fast, $dangerous);
+our ($VERSION, $strict, $fast, $dangerous, $loud);
 use Carp;
 
-$VERSION = '1.08';
+$VERSION = '1.09';
 
 sub import {
     my ($pkg, @args) = @_;
@@ -12,7 +12,9 @@ sub import {
     $strict = $args =~ /\bstrict\b/;
     $fast   = $args =~ /\bfast\b/;
     $dangerous = $args =~ /\bdangerous\b/;
+    $loud = $args =~ /\bloud\b/;
     croak qq{$pkg can't be both "strict" and "fast"} if $strict && $fast;
+    $strict = 1 if $loud;
 }
 
 # TAKE A LIST OF POSSIBLE CLASSES FOR AN IMPLICIT KEY AND REMOVE NON-CONTENDERS
@@ -171,7 +173,7 @@ sub _access {
 
 sub _dangerous_access {
     my ($self,$key,$caller, $action) = @_;
-    carp "Ran an expensive dangerous $action due to unqualified key $key being sent in to hash for $caller" if $strict;
+    _complain(@_) if $strict;
     require mro;
     my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
     pop @isa; # Exporter
@@ -191,6 +193,17 @@ sub _dangerous_access {
         }
     }
     return \$val;
+}
+
+sub _complain { # override complain with Role::Tiny to customise dump.
+    my ($self, $key, $caller, $action) = @_;
+    $DB::single=1;
+    carp "Ran an expensive dangerous $action due to unqualified key $key being sent in to hash for $caller" if $strict;
+    if ($loud) {
+        require Data::Dumper;
+        Data::Dumper->import;
+        carp Dumper ($self->{fullkeys});
+    }
 }
 
 # NOTE THAT NEW MAY TIE AND BLESS INTO THE SAME CLASS
@@ -395,7 +408,7 @@ sub EXISTS                      # ($self, $key)
         }
         else {
             my $caller = (caller)[0];
-            carp "Expensive dangerous Tie::SecureHash EXISTS in $caller for key $key" if $strict;
+            _complain($self, $key, $caller, 'EXISTS') if $strict;
             return exists $self->{fullkeys}->{"$caller::$key"};
         }
     }
@@ -1280,7 +1293,7 @@ access a securehash. Thus, code that uses securehashes and runs
 without warnings in "strict" mode is guaranteed to have the same
 behaviour in "fast" mode.
 
-=head2 'dangerous' securehashes
+=head2 'Dangerous' securehashes
 
 Dangerous mode is an experimental mode where you get much of the speedup
 with safe mode but where your tests aren't good enough to make fast mode
@@ -1291,8 +1304,11 @@ work.  Dangerous B<will not> work correctly in some multiple inheritance
 scenarios, it's very much up to the existing structure of your code.  This
 mode is called 'dangerous' for a reason.  Caveat emptor.
 
+You can also pass in 'loud' as well as dangerous for the ultimate in
+logging your SecureHash's behaviour.  'loud' also implies 'strict'.
+
 =head2 The formal access rules
-        
+
 The access rules for a securehash are designed to provide secure
 encapsulation with minimal inconvenience and maximal intuitiveness.
 However, to produce this appearance of intelligence, the formal access
