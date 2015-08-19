@@ -4,7 +4,7 @@ use strict;
 our ($VERSION, $strict, $fast, $dangerous, $loud);
 use Carp;
 
-$VERSION = '1.08';
+$VERSION = '1.09';
 
 sub import {
     my ($pkg, @args) = @_;
@@ -1293,7 +1293,7 @@ access a securehash. Thus, code that uses securehashes and runs
 without warnings in "strict" mode is guaranteed to have the same
 behaviour in "fast" mode.
 
-=head2 'dangerous' securehashes
+=head2 'Dangerous' securehashes
 
 Dangerous mode is an experimental mode where you get much of the speedup
 with safe mode but where your tests aren't good enough to make fast mode
@@ -1304,8 +1304,11 @@ work.  Dangerous B<will not> work correctly in some multiple inheritance
 scenarios, it's very much up to the existing structure of your code.  This
 mode is called 'dangerous' for a reason.  Caveat emptor.
 
+You can also pass in 'loud' as well as dangerous for the ultimate in
+logging your SecureHash's behaviour.  'loud' also implies 'strict'.
+
 =head2 The formal access rules
-        
+
 The access rules for a securehash are designed to provide secure
 encapsulation with minimal inconvenience and maximal intuitiveness.
 However, to produce this appearance of intelligence, the formal access
