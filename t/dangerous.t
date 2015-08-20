@@ -5,8 +5,9 @@
 ######################### We start with some black magic to print on failure.
 
 use 5.005;
-BEGIN { $| = 1; print "1..160\n"; 
-$ENV{UNSAFE_WARN} = 0;
+BEGIN {
+    $| = 1; print "1..160\n"; 
+    $ENV{UNSAFE_WARN} = 0;
 }
 END {print "not ok 1\n" unless $loaded;}
 
@@ -72,10 +73,10 @@ package Parent;
 ::ok eval { $::hashref->{Parent::_protected_p} };
 ::ok eval { $::hashref->{Parent::public_p} };
 
-::NB "CAN'T ACCESS ALL FIELDS OF THIS CLASS IMPLICITLY";
-::ok eval { ! $::hashref->{__private_p} };
-::ok eval { ! $::hashref->{_protected_p} };
-::ok eval { ! $::hashref->{public_p} };
+::NB "CAN ACCESS ALL FIELDS OF THIS CLASS IMPLICITLY";
+::ok eval { $::hashref->{__private_p} };
+::ok eval { $::hashref->{_protected_p} };
+::ok eval { $::hashref->{public_p} };
 
 ::NB "CAN'T ACCESS NON-EXISTENT FIELDS OF THIS CLASS IMPLICITLY";
 ::ok not eval { $::hashref->{__private_p_ne} };
@@ -127,9 +128,9 @@ package Child;
 ::ok eval { $::hashref->{Parent::public_p} eq "public_p" };
 
 ::NB "CAN ACCESS NON-PRIVATE FIELDS OF PARENT CLASS IMPLICITLY";
-::ok ! $::hashref->{__private_p};
-::ok ! $::hashref->{_protected_p} eq "protected_p";
-::ok ! $::hashref->{public_p} eq "public_p";
+::ok eval { $::hashref->{__private_p} };
+::ok eval {$::hashref->{_protected_p} eq "protected_p"};
+::ok eval { $::hashref->{public_p} eq "public_p" };
 
 ::NB "CAN 'OVERRIDE' FIELDS OF PARENT CLASS";
 ::ok eval { $::hashref->{Child::__private_p} = "private_cp" };
@@ -281,23 +282,23 @@ push @ISA, OtherParent;
 package OtherParent;
 
 ::NB "MULTIPLE INHERITANCE AMBIGUITY";
-::ok ! $::hashref->{_multi_ambiguous};
-::ok ! $::hashref->{multi_ambiguous};
+::ok eval { $::hashref->{_multi_ambiguous} };
+::ok eval { $::hashref->{multi_ambiguous} };
 
 package Parent;
 
 ::NB "MULTIPLE INHERITANCE AMBIGUITY";
-::ok ! $::hashref->{_multi_ambiguous};
-::ok ! $::hashref->{multi_ambiguous};
+::ok eval {$::hashref->{_multi_ambiguous}};
+::ok eval { $::hashref->{multi_ambiguous}};
 
 package Child;
 
 ::NB "MULTIPLE INHERITANCE AMBIGUITY FOR PROTECTED KEY";
-::ok ! $::hashref->{_multi_ambiguous};
+::ok eval {$::hashref->{_multi_ambiguous}};
 
 ::NB "MULTIPLE INHERITANCE AMBIGUITY PUBLIC KEY
 (ALL CLASSES CONSIDERED)";
-::ok not eval { $::hashref->{multi_ambiguous} };
+::ok eval { $::hashref->{multi_ambiguous} };
 
 package GrandChild;
 

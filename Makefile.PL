@@ -2,5 +2,5 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
 		NAME	=> 'Tie::SecureHash',
-		VERSION => '1.09',
+		VERSION => '1.10',
 	     );

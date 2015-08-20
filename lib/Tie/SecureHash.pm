@@ -4,7 +4,7 @@ use strict;
 our ($VERSION, $strict, $fast, $dangerous, $loud);
 use Carp;
 
-$VERSION = '1.09';
+$VERSION = '1.10';
 
 sub import {
     my ($pkg, @args) = @_;
@@ -176,7 +176,7 @@ sub _dangerous_access {
     _complain(@_) if $strict;
     require mro;
     my @isa = @{mro::get_linear_isa($caller)}; # mro seems to return a weird read only arrayref
-    pop @isa; # Exporter
+    pop @isa if $isa[-1] eq 'Exporter';
     my @candidate_keys = map { "$_::$key" } @isa;
     my $val;
     foreach my $k (@candidate_keys) {
